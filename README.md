@@ -1,8 +1,8 @@
 # a37-orb
 
 A self-hosted [Amp](https://ampcode.com/) orb provider whose orbs run as
-[Agent37](https://www.agent37.com/) cloud instances. The provider host (a
-laptop) is only the controller: `dispatch.sh` receives Amp's spawn/pause/delete
+[Agent37](https://www.agent37.com/) cloud instances. The provider host is
+only the controller: `dispatch.sh` receives Amp's spawn/pause/delete
 jobs and maps them onto Agent37's Sandbox REST API, so threads get real cloud
 sandboxes without any local compute.
 
@@ -10,12 +10,6 @@ Original clean-room implementation against the two public contracts — Amp's
 [dispatch contract](https://ampcode.com/docs/orbs/self-hosted) and the
 [Agent37 Sandbox API](https://www.agent37.com/docs/agents-api). No upstream
 auto-update: this repo is the source of truth and changes are made by hand.
-
-## Status
-
-Deployed and running on the omarchy laptop since 2026-11-11 as a personal
-provider (units `a37-orb-*`). Full lifecycle verified live: spawn, resume,
-idle pause, delete, disk autogrow, daily image refresh.
 
 ## Layout
 
@@ -29,7 +23,7 @@ idle pause, delete, disk autogrow, daily image refresh.
 | `config.json` | Region/template defaults, orb type map (`s m l xl vm-m vm-l vm-xl`), disk_grow knobs, `upstream_refs`/`entrypoints` |
 | `test/` | 40-assertion regression suite against `mock.py`, a local mock of both API planes |
 
-## Deployment (this machine)
+## Deployment
 
 The live copies run from `~/.config/a37-orb/` (same files; plus `env`, the
 0600 secrets file that is never committed). After editing here:
@@ -60,9 +54,6 @@ Orb type names must match the provider's Edit dialog in Amp exactly.
   in `test/` enforces this and caught the original bug's class.
 - Bash 5.3 RETURN traps set inside a function re-fire on outer returns and
   break under `set -u`; cleanup uses EXIT traps on process-scoped temp files.
-
-Machine-specific operation records live in `~/Documents/Agent/dev-tools.md`
-(omarchy laptop); that file is authoritative for what is currently deployed.
 
 ## Acknowledgements
 
