@@ -1,0 +1,35 @@
+{
+  "api_base": "https://api.agent37.com",
+  "exec_base": "https://sandbox.agent37.app",
+  "template": "amp-orb",
+  "region": "us",
+  "type": "default",
+  "resources": { "cpu": 2, "memory": 4, "disk": 5 },
+  "mount_path": "/home/user/workspace",
+  "bootstrap_log": "/home/user/.amp-bootstrap.log",
+  "budget_seconds": 270,
+  "api_timeout_seconds": 120,
+  "bootstrap_timeout_seconds": 60,
+  "orb_type_map": {
+    "s":     { "template": "amp-orb", "type": "default", "cpu": 2, "memory": 4,  "disk": 5, "disk_max": 12 },
+    "m":     { "template": "amp-orb", "type": "default", "cpu": 4, "memory": 8,  "disk": 5, "disk_max": 20 },
+    "l":     { "template": "amp-orb", "type": "default", "cpu": 4, "memory": 16, "disk": 5, "disk_max": 40 },
+    "xl":    { "template": "amp-orb", "type": "default", "cpu": 4, "memory": 32, "disk": 5, "disk_max": 80 },
+    "vm-m":  { "template": "amp-orb", "type": "vm",      "cpu": 4, "memory": 8,  "disk": 5, "disk_max": 100 },
+    "vm-l":  { "template": "amp-orb", "type": "vm",      "cpu": 4, "memory": 16, "disk": 5, "disk_max": 100 },
+    "vm-xl": { "template": "amp-orb", "type": "vm",      "cpu": 4, "memory": 32, "disk": 5, "disk_max": 100 }
+  },
+  "disk_grow": {
+    "enabled": true,
+    "step_gb": 5,
+    "threshold_percent": 90,
+    "min_free_gb": 1,
+    "max_disk_default": 50
+  },
+  "upstream_refs": {
+    "amp-orb": "us-central1-docker.pkg.dev/amp-prod-0/amp-orb/amp-orb:latest"
+  },
+  "entrypoints": {
+    "amp-orb": ["sleep", "infinity"]
+  }
+}

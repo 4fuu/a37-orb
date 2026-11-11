@@ -1,0 +1,7 @@
+# secrets — the live env file lives outside this repo (~/.config/a37-orb/env)
+env
+*.env
+# provider state
+state/
+*.state
+templates.json
