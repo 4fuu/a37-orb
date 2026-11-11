@@ -8,9 +8,8 @@ sandboxes without any local compute.
 
 Original clean-room implementation against the two public contracts — Amp's
 [dispatch contract](https://ampcode.com/docs/orbs/self-hosted) and the
-[Agent37 Sandbox API](https://www.agent37.com/docs/agents-api). No code from
-the XYenon/agent37-orb-provider project; no upstream auto-update — this repo
-is the source of truth and changes are made by hand.
+[Agent37 Sandbox API](https://www.agent37.com/docs/agents-api). No upstream
+auto-update: this repo is the source of truth and changes are made by hand.
 
 ## Status
 
@@ -64,3 +63,10 @@ Orb type names must match the provider's Edit dialog in Amp exactly.
 
 Machine-specific operation records live in `~/Documents/Agent/dev-tools.md`
 (omarchy laptop); that file is authoritative for what is currently deployed.
+
+## Acknowledgements
+
+The Agent37 integration pattern — template pinning and refresh, the
+entrypoint override for the official orb image, metadata-based orb tracking —
+was informed by [XYenon/agent37-orb-provider](https://github.com/XYenon/agent37-orb-provider).
+No code was taken from it.
