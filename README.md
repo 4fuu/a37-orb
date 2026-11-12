@@ -61,3 +61,7 @@ The Agent37 integration pattern — template pinning and refresh, the
 entrypoint override for the official orb image, metadata-based orb tracking —
 was informed by [XYenon/agent37-orb-provider](https://github.com/XYenon/agent37-orb-provider).
 No code was taken from it.
+
+## License
+
+MIT — see [LICENSE](LICENSE).
