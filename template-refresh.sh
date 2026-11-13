@@ -54,7 +54,7 @@ refresh_template() {
 	local name=$1 ref want_entry digest up_ref body
 	ref=$(jq -rn --slurpfile c "$A37_CONFIG_FILE" --arg n "$name" '$c[0].upstream_refs[$n] // empty')
 	want_entry=$(jq -c --slurpfile c "$A37_CONFIG_FILE" --arg n "$name" '$c[0].entrypoints[$n] // empty')
-	digest=$(podman manifest inspect "$ref" 2>/dev/null | jq -r '.digest // empty')
+	digest=$(a37_upstream_digest "$ref")
 	if [ -z "$digest" ]; then
 		a37_log "$name: cannot resolve upstream digest for $ref, skipping"
 		return 0

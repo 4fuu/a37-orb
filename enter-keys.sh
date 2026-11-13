@@ -19,6 +19,10 @@ ENV_FILE="$CONF_DIR/env"
 say() { printf '==> %s\n' "$*"; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
+# Shared helpers, for a37_upstream_digest: registration pins the same digest
+# that the daily refresh compares against, so both must resolve it the same way.
+. "${A37_LIB_DIR:-$CONF_DIR}/common.sh"
+
 [ -t 0 ] || die "run this in a terminal; it prompts for secrets"
 
 read_secret() { # PROMPT -> value on stdout
@@ -66,7 +70,7 @@ chmod 600 "$ENV_FILE"
 say "ensuring the Agent37 template is registered (first registration can take minutes)"
 ref=$(jq -r '.upstream_refs["amp-orb"] // "us-central1-docker.pkg.dev/amp-prod-0/amp-orb/amp-orb:latest"' "$CONF_DIR/config.json")
 entry=$(jq -c '.entrypoints["amp-orb"] // null' "$CONF_DIR/config.json")
-digest=$(podman manifest inspect "$ref" 2>/dev/null | jq -r '.digest // empty')
+digest=$(a37_upstream_digest "$ref")
 if [ -n "$digest" ]; then
 	ref="${ref%:*}@$digest"
 fi

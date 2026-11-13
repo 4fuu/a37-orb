@@ -50,6 +50,23 @@ a37_cfg() {
 		'$c[0] | getpath($p | split(".")) // $d'
 }
 
+# a37_upstream_digest REF -> the linux/amd64 manifest digest of an image ref,
+# or nothing when it cannot be resolved.
+#
+# `podman manifest inspect` prints the OCI index itself, which has no top-level
+# .digest field: the per-platform entries are the only digests in there. amd64
+# is the right entry because that is the manifest this host pulls, and the
+# digest form we pin a template to has to name a manifest, not an index.
+# Resolving this wrong is silent — an empty digest reads as "upstream
+# unavailable" and every refresh skips — so it is verified against real podman
+# output in test/ instead of being trusted.
+a37_upstream_digest() {
+	podman manifest inspect "$1" 2>/dev/null |
+		jq -r '[.manifests[]?
+			| select(.platform.os == "linux" and .platform.architecture == "amd64")
+			| .digest][0] // empty' 2>/dev/null || true
+}
+
 a37_budget_left() { echo $((A37_BUDGET - ($(date +%s) - A37_T0))); }
 
 # Prints a timeout of at most `want` seconds, clamped to the remaining budget.

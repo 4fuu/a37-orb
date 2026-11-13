@@ -21,7 +21,7 @@ auto-update: this repo is the source of truth and changes are made by hand.
 | `template-refresh.sh` | Daily 04:00: repins the `amp-orb` Agent37 template to the newest upstream digest (PATCH → new revision) and rolls it out to stopped orbs only |
 | `enter-keys.sh` | Interactive secret entry (`read -s`): validates keys, registers the template, enables the units |
 | `config.json` | Region/template defaults, orb type map (`s m l xl vm-m vm-l vm-xl`), disk_grow knobs, `upstream_refs`/`entrypoints` |
-| `test/` | 40-assertion regression suite against `mock.py`, a local mock of both API planes |
+| `test/` | 45-assertion regression suite against `mock.py`, a local mock of both API planes |
 
 ## Deployment
 
@@ -30,7 +30,7 @@ The live copies run from `~/.config/a37-orb/` (same files; plus `env`, the
 
 ```bash
 cp *.sh config.json ~/.config/a37-orb/ && cp test/* ~/.config/a37-orb/test/
-bash test/run.sh                      # 40 assertions must pass
+bash test/run.sh                      # 45 assertions must pass
 systemctl --user restart a37-orb-provider   # dispatch is re-read per job; this is only for the daemon
 ```
 
@@ -45,6 +45,12 @@ Orb type names must match the provider's Edit dialog in Amp exactly.
   ignores later `:latest` pushes; that is why `template-refresh.sh` exists and
   why its idempotence baseline is the local `sent_ref` state, not the server's
   digest field.
+- The upstream digest is the `linux/amd64` entry of the image's OCI index,
+  because `podman manifest inspect` prints the index itself and it carries no
+  top-level digest. Failing to resolve it is silent — an empty digest reads as
+  "upstream unreachable", so the refresh logs a skip and returns 0 — which is
+  how the provider sat on one image for two days. The test fixture therefore
+  prints a real index rather than a `{digest}` object.
 - `mount_path` is forced to `/home/user/workspace` at create: Agent37's
   default (the image user's home) would mask the image's `amp` binary.
 - Project snapshots (`ORB_SNAPSHOT_ID`) are ignored — no container commit on

@@ -25,7 +25,24 @@ jq --argjson p "$PORT" '.api_base = "http://127.0.0.1:\($p)"
     | .budget_seconds = 90
     | .bootstrap_timeout_seconds = 9' "$LIB/config.json" >"$T/config.json"
 printf 'AMP_ORB_PROVIDER_TOKEN=aop_live_TESTTOKEN\nAGENT37_API_KEY=sk_live_TESTKEY\n' >"$T/env"
-printf '#!/usr/bin/env bash\nprintf "%%s\\n" \x27{"name":"amp-orb","digest":"sha256:NEWUPSTREAM"}\x27\n' >"$T/bin/podman"
+# Fake podman printing what `podman manifest inspect` really prints for a
+# multi-arch tag: the OCI index itself, with no top-level digest. The amd64
+# entry is the manifest this host pulls, so that is the one to pin; the foreign
+# arch comes first and an attestation entry (unknown platform) sits before it,
+# so taking the first manifest, or a top-level .digest that does not exist,
+# both fail the refresh assertions below.
+cat >"$T/bin/podman" <<'FAKE'
+#!/usr/bin/env bash
+if [ -n "${A37_TEST_NO_AMD64:-}" ]; then
+	printf '%s\n' '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[
+		{"digest":"sha256:ARMONLY","platform":{"architecture":"arm64","os":"linux"}}]}'
+else
+	printf '%s\n' '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[
+		{"digest":"sha256:ARMOTHER","platform":{"architecture":"arm64","os":"linux"}},
+		{"digest":"sha256:ATTESTATION","platform":{"architecture":"unknown","os":"unknown"}},
+		{"digest":"sha256:NEWUPSTREAM","platform":{"architecture":"amd64","os":"linux"}}]}'
+fi
+FAKE
 chmod +x "$T/bin/podman"
 
 run_dispatch() {
@@ -105,6 +122,9 @@ grep -q "refreshing" <<<"$out" && ok "refresh detects stale image" || bad "refre
 check "patch count" "$(state .patch_count)" 1
 check "template revision" "$(state '.templates["amp-orb"].revision')" 2
 check "template digest updated" "$(state '.templates["amp-orb"].image_digest')" sha256:NEWUPSTREAM
+check "template pinned to the amd64 manifest digest" \
+	"$(state '.templates["amp-orb"].image_ref')" \
+	"us-central1-docker.pkg.dev/amp-prod-0/amp-orb/amp-orb@sha256:NEWUPSTREAM"
 check "stopped instance updated to rev 2" "$(state '.instances | to_entries[0].value.template_revision')" 2
 check "update called once" "$(state .update_count)" 1
 out=$(PATH="$T/bin:$PATH" A37_LIB_DIR="$LIB" A37_CONF_DIR="$T" A37_STATE_DIR="$T/state" \
@@ -112,6 +132,16 @@ out=$(PATH="$T/bin:$PATH" A37_LIB_DIR="$LIB" A37_CONF_DIR="$T" A37_STATE_DIR="$T
 check "second run: no extra patch" "$(state .patch_count)" 1
 check "second run: no extra update" "$(state .update_count)" 1
 grep -q "up to date" <<<"$out" && ok "second run reports up to date" || bad "second run reports up to date"
+
+# --- 9. an index with no amd64 entry is skipped, not pinned to another arch ---
+out=$(PATH="$T/bin:$PATH" A37_TEST_NO_AMD64=1 A37_LIB_DIR="$LIB" A37_CONF_DIR="$T" \
+	A37_STATE_DIR="$T/state" bash "$LIB/template-refresh.sh" 2>&1)
+check "no-amd64 index exits 0" "$?" 0
+grep -q "cannot resolve upstream digest" <<<"$out" && ok "no-amd64 index skips" || bad "no-amd64 index skips"
+check "no-amd64 index: no patch" "$(state .patch_count)" 1
+check "no-amd64 index: ref untouched" \
+	"$(state '.templates["amp-orb"].image_ref')" \
+	"us-central1-docker.pkg.dev/amp-prod-0/amp-orb/amp-orb@sha256:NEWUPSTREAM"
 
 # --- cleanup ---------------------------------------------------------------------
 for p in $(pgrep -f "$DIR/mock.py" || true); do kill "$p" 2>/dev/null || true; done
