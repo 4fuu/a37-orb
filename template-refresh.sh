@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Template refresh for a37-orb: keeps the Agent37 workspace templates pinned to
 # the newest upstream orb image, then rolls the new revision out to stopped
-# orbs. Runs daily at 04:00 from a systemd timer (no Amp job budget, but a
+# orbs. Runs every 6 hours from a systemd timer (no Amp job budget, but a
 # template PATCH copies the image server-side and can take minutes).
 #
 # Why this exists: Agent37 copies the image once at template registration and

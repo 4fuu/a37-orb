@@ -18,7 +18,7 @@ auto-update: this repo is the source of truth and changes are made by hand.
 | `common.sh` | Shared Agent37 API client: budget clamps, retry/backoff for 429/5xx/409 `try_again`, exec plane, config getters |
 | `dispatch.sh` | Amp dispatch contract: full instance state machine (create/start/stop/delete by `metadata.amp_orb_id`, sleeping → discard checkpoint, cold storage → direct start, failed → replace) and detached `amp orb bootstrap` with `ORB_TOKEN` |
 | `disk-grow.sh` | Timer sweep (~1 min): grows a running orb's disk by 5 GB at ≥90 % use or <1 GB free, capped per shape |
-| `template-refresh.sh` | Daily 04:00: repins the `amp-orb` Agent37 template to the newest upstream digest (PATCH → new revision) and rolls it out to stopped orbs only |
+| `template-refresh.sh` | Every 6 hours: repins the `amp-orb` Agent37 template to the newest upstream digest (PATCH → new revision) and rolls it out to stopped orbs only |
 | `enter-keys.sh` | Interactive secret entry (`read -s`): validates keys, registers the template, enables the units |
 | `config.json` | Region/template defaults, orb type map (`s m l xl vm-m vm-l vm-xl`), disk_grow knobs, `upstream_refs`/`entrypoints` |
 | `test/` | 46-assertion regression suite against `mock.py`, a local mock of both API planes |
