@@ -26,6 +26,12 @@
     "min_free_gb": 1,
     "max_disk_default": 50
   },
+  "reap": {
+    "enabled": true,
+    "max_age_hours": 72,
+    "delay_seconds": 1,
+    "max_deletes_per_run": 20
+  },
   "upstream_refs": {
     "amp-orb": "us-central1-docker.pkg.dev/amp-prod-0/amp-orb/amp-orb:latest"
   },

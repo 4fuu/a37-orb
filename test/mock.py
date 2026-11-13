@@ -30,6 +30,7 @@ STATE = {
     },
     "instances": {},
     "exec_log": [],
+    "events": {},
     "create_count": 0,
     "patch_count": 0,
     "update_count": 0,
@@ -82,6 +83,12 @@ class H(BaseHTTPRequestHandler):
                 os.unlink("/tmp/a37-orb-test-flaky")
                 return self.reply(503, {"error": {"code": "try_again"}})
             return self.reply(200, {"data": list(STATE["instances"].values())})
+        m = re.fullmatch(r"/v1/instances/([a-z0-9]+)/events", p)
+        if m:
+            if m.group(1) not in STATE["instances"]:
+                return self.reply(404, {"error": {"code": "not_found"}})
+            return self.reply(200, {"from": "2026-10-01", "to": "2026-12-31",
+                                    "events": STATE["events"].get(m.group(1), [])})
         m = re.fullmatch(r"/v1/instances/([a-z0-9]+)", p)
         if m:
             inst = STATE["instances"].get(m.group(1))
@@ -95,6 +102,19 @@ class H(BaseHTTPRequestHandler):
             return self.reply(401, {"error": {"code": "unauthorized"}})
         p = urlparse(self.path).path
         b = self.body()
+        if p == "/v1/_test/event":
+            # Test-only: append one lifecycle event, to model a history whose
+            # last entry is not a stop (the reaper must keep that instance).
+            STATE["events"].setdefault(b["id"], []).append(
+                {"type": b["type"], "at": int(time.time())})
+            dump()
+            return self.reply(201, STATE["events"][b["id"]])
+        if p == "/v1/_test/backdate":
+            # Test-only: age an instance's history instead of waiting 72 hours.
+            for ev in STATE["events"].get(b["id"], []):
+                ev["at"] -= b["seconds"]
+            dump()
+            return self.reply(200, STATE["events"].get(b["id"], []))
         if p == "/v1/templates":
             name = b.get("name")
             if name in STATE["templates"]:
@@ -118,9 +138,13 @@ class H(BaseHTTPRequestHandler):
             op = m.group(2)
             if op == "start":
                 inst["status"] = "running"
+                STATE["events"].setdefault(inst["id"], []).append(
+                    {"type": "instance.started", "at": int(time.time())})
                 STATE["bootstrap"][inst["id"]] = False  # fresh container
             elif op == "stop":
                 inst["status"] = "stopped"
+                STATE["events"].setdefault(inst["id"], []).append(
+                    {"type": "instance.stopped", "at": int(time.time())})
             elif op == "update":
                 tpl = STATE["templates"][inst["template"].split("@")[0]]
                 inst["template_revision"] = tpl["revision"]
@@ -156,6 +180,7 @@ class H(BaseHTTPRequestHandler):
                 "metadata": b.get("metadata"), "created": time.time(),
             }
             STATE["instances"][iid] = inst
+            STATE["events"][iid] = [{"type": "instance.started", "at": int(time.time())}]
             dump()
             return self.reply(201, inst)
         m = re.fullmatch(r"/v1/instances/([a-z0-9]+)/exec", p)
@@ -227,6 +252,7 @@ class H(BaseHTTPRequestHandler):
         if m.group(1) not in STATE["instances"]:
             return self.reply(404, {"error": {"code": "not_found"}})
         del STATE["instances"][m.group(1)]
+        STATE["events"].pop(m.group(1), None)
         STATE["bootstrap"].pop(m.group(1), None)
         dump()
         return self.reply(200, {"id": m.group(1), "deleted": True})

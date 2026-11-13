@@ -19,9 +19,10 @@ auto-update: this repo is the source of truth and changes are made by hand.
 | `dispatch.sh` | Amp dispatch contract: full instance state machine (create/start/stop/delete by `metadata.amp_orb_id`, sleeping → discard checkpoint, cold storage → direct start, failed → replace) and detached `amp orb bootstrap` with `ORB_TOKEN` |
 | `disk-grow.sh` | Timer sweep (~1 min): grows a running orb's disk by 5 GB at ≥90 % use or <1 GB free, capped per shape |
 | `template-refresh.sh` | Every 6 hours: repins the `amp-orb` Agent37 template to the newest upstream digest (PATCH → new revision) and rolls it out to stopped orbs only |
+| `reap.sh` | Daily 03:20: deletes instances whose last lifecycle event is `instance.stopped` and that stopped more than 72 h ago, paced one request at a time with a per-run deletion cap |
 | `enter-keys.sh` | Interactive secret entry (`read -s`): validates keys, registers the template, enables the units |
-| `config.json` | Region/template defaults, orb type map (`s m l xl vm-m vm-l vm-xl`), disk_grow knobs, `upstream_refs`/`entrypoints` |
-| `test/` | 46-assertion regression suite against `mock.py`, a local mock of both API planes |
+| `config.json` | Region/template defaults, orb type map (`s m l xl vm-m vm-l vm-xl`), `disk_grow` and `reap` knobs, `upstream_refs`/`entrypoints` |
+| `test/` | 60-assertion regression suite against `mock.py`, a local mock of both API planes |
 
 ## Deployment
 
@@ -30,7 +31,7 @@ The live copies run from `~/.config/a37-orb/` (same files; plus `env`, the
 
 ```bash
 cp *.sh config.json ~/.config/a37-orb/ && cp test/* ~/.config/a37-orb/test/
-bash test/run.sh                      # 46 assertions must pass
+bash test/run.sh                      # 60 assertions must pass
 systemctl --user restart a37-orb-provider   # dispatch is re-read per job; this is only for the daemon
 ```
 
@@ -51,6 +52,19 @@ Orb type names must match the provider's Edit dialog in Amp exactly.
   "upstream unreachable", so the refresh logs a skip and returns 0 — which is
   how the provider sat on one image for two days. The test fixture therefore
   prints a real index rather than a `{digest}` object.
+- Agent37 bills a stopped instance's disk until it is deleted, and Amp only
+  sends `delete` when the thread is deleted — archiving pauses and never
+  deletes. `reap.sh` is the only thing that ends that billing early, so it is
+  deliberately conservative: the age comes from the instance's own event
+  history (not a local timestamp, which a controller restart would lose), an
+  instance whose history does not end in a stop is kept, and anything without
+  `metadata.amp_orb_id` is never touched.
+- `auto_sleep` stays off. Amp already pauses an orb 5 minutes after the agent
+  stops working, which is a judgement only Amp can make; Agent37's idle timer
+  only sees inbound traffic on the instance URLs, which a busy orb working
+  through a long build does not generate, so enabling it would risk
+  checkpointing an orb mid-task for a state that bills the same disk rate as
+  `stopped`.
 - `mount_path` is forced to `/home/user/workspace` at create: Agent37's
   default (the image user's home) would mask the image's `amp` binary.
 - Project snapshots (`ORB_SNAPSHOT_ID`) are ignored — no container commit on

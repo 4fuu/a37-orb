@@ -23,7 +23,9 @@ mkdir -p "$T/state" "$T/bin"
 jq --argjson p "$PORT" '.api_base = "http://127.0.0.1:\($p)"
     | .exec_base = "http://127.0.0.1:\($p)"
     | .budget_seconds = 90
-    | .bootstrap_timeout_seconds = 9' "$LIB/config.json" >"$T/config.json"
+    | .bootstrap_timeout_seconds = 9
+    | .reap.delay_seconds = 0
+    | .reap.max_deletes_per_run = 1' "$LIB/config.json" >"$T/config.json"
 printf 'AMP_ORB_PROVIDER_TOKEN=aop_live_TESTTOKEN\nAGENT37_API_KEY=sk_live_TESTKEY\n' >"$T/env"
 # Fake podman printing what `podman manifest inspect` really prints for a
 # multi-arch tag: the OCI index itself, with no top-level digest. The amd64
@@ -145,6 +147,67 @@ check "no-amd64 index: no patch" "$(state .patch_count)" 1
 check "no-amd64 index: ref untouched" \
 	"$(state '.templates["amp-orb"].image_ref')" \
 	"us-central1-docker.pkg.dev/amp-prod-0/amp-orb/amp-orb@sha256:NEWUPSTREAM"
+
+# --- 10. reaper: deletes only instances stopped for over 72 h -----------------
+has_orb() { state "[.instances[] | select((.metadata.amp_orb_id // \"\") == \"$1\")] | length"; }
+inst_of() { state ".instances | to_entries | map(select((.value.metadata.amp_orb_id // \"\") == \"$1\"))[0].key"; }
+backdate() { # INSTANCE_ID SECONDS
+	curl -s -o /dev/null -X POST -H "X-Agent37-Key: sk_live_TESTKEY" \
+		--data "{\"id\":\"$1\",\"seconds\":$2}" "http://127.0.0.1:$PORT/v1/_test/backdate"
+}
+add_event() { # INSTANCE_ID TYPE
+	curl -s -o /dev/null -X POST -H "X-Agent37-Key: sk_live_TESTKEY" \
+		--data "{\"id\":\"$1\",\"type\":\"$2\"}" "http://127.0.0.1:$PORT/v1/_test/event"
+}
+reap() { A37_LIB_DIR="$LIB" A37_CONF_DIR="$T" A37_STATE_DIR="$T/state" \
+	bash "$LIB/reap.sh" "$@"; }
+
+for o in amp-T-run amp-T-fresh amp-T-old amp-T-old2 amp-T-odd; do
+	run_dispatch env ORB_OPERATION=spawn ORB_ID="$o" ORB_TOKEN="tok-$o" ORB_TYPE=s >/dev/null 2>&1
+done
+# run stays running; the rest are stopped by a pause job, like a real idle orb.
+for o in amp-T-fresh amp-T-old amp-T-old2 amp-T-odd; do
+	run_dispatch env ORB_OPERATION=pause ORB_ID="$o" >/dev/null 2>&1
+done
+# odd: history ends with a start, so it must be kept even though it is old.
+add_event "$(inst_of amp-T-odd)" instance.started
+backdate "$(inst_of amp-T-odd)" $((80 * 3600))
+backdate "$(inst_of amp-T-old)" $((80 * 3600))
+backdate "$(inst_of amp-T-old2)" $((90 * 3600))
+backdate "$(inst_of amp-T-fresh)" $((10 * 3600))
+# an instance the provider did not create (no amp_orb_id) must never be reaped
+foreign=$(curl -s -X POST -H "X-Agent37-Key: sk_live_TESTKEY" -H 'Content-Type: application/json' \
+	--data '{"template":"amp-orb","resources":{"cpu":2,"memory":4,"disk":5}}' \
+	"http://127.0.0.1:$PORT/v1/instances" | jq -r .id)
+curl -s -o /dev/null -X POST -H "X-Agent37-Key: sk_live_TESTKEY" \
+	"http://127.0.0.1:$PORT/v1/instances/$foreign/stop"
+backdate "$foreign" $((80 * 3600))
+
+out=$(reap 2>&1)
+check "reap exits 0" "$?" 0
+check "reap deletes the oldest stopped orb" "$(has_orb amp-T-old)" 0
+grep -q "deletion cap" <<<"$out" && ok "reap honours the per-run cap" || bad "reap honours the per-run cap"
+check "cap leaves the other eligible orb" "$(has_orb amp-T-old2)" 1
+check "reap keeps an orb stopped 10 h" "$(has_orb amp-T-fresh)" 1
+check "reap keeps a running orb" "$(has_orb amp-T-run)" 1
+check "reap keeps a history ending in start" "$(has_orb amp-T-odd)" 1
+check "reap never touches a non-provider instance" \
+	"$(state "[.instances[] | select(.id == \"$foreign\")] | length")" 1
+
+jq '.reap.max_deletes_per_run = 10' "$T/config.json" >"$T/config.next" && mv "$T/config.next" "$T/config.json"
+out=$(reap 2>&1)
+check "second reap clears the backlog" "$(has_orb amp-T-old2)" 0
+check "second reap still keeps 10 h orb" "$(has_orb amp-T-fresh)" 1
+check "second reap still keeps start-last orb" "$(has_orb amp-T-odd)" 1
+check "second reap still skips the non-provider instance" \
+	"$(state "[.instances[] | select(.id == \"$foreign\")] | length")" 1
+
+run_dispatch env ORB_OPERATION=spawn ORB_ID=amp-T-dry ORB_TOKEN=tok-DRY ORB_TYPE=s >/dev/null 2>&1
+run_dispatch env ORB_OPERATION=pause ORB_ID=amp-T-dry >/dev/null 2>&1
+backdate "$(inst_of amp-T-dry)" $((80 * 3600))
+out=$(reap --dry-run 2>&1)
+grep -q "would delete" <<<"$out" && ok "dry run reports the candidate" || bad "dry run reports the candidate"
+check "dry run deletes nothing" "$(has_orb amp-T-dry)" 1
 
 # --- cleanup ---------------------------------------------------------------------
 for p in $(pgrep -f "$DIR/mock.py" || true); do kill "$p" 2>/dev/null || true; done
