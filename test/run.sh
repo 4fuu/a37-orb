@@ -132,6 +132,9 @@ out=$(PATH="$T/bin:$PATH" A37_LIB_DIR="$LIB" A37_CONF_DIR="$T" A37_STATE_DIR="$T
 check "second run: no extra patch" "$(state .patch_count)" 1
 check "second run: no extra update" "$(state .update_count)" 1
 grep -q "up to date" <<<"$out" && ok "second run reports up to date" || bad "second run reports up to date"
+check "sent_ref recorded in the state file" \
+	"$(jq -r '.["amp-orb"].sent_ref' "$T/state/templates.json" 2>/dev/null)" \
+	"us-central1-docker.pkg.dev/amp-prod-0/amp-orb/amp-orb@sha256:NEWUPSTREAM"
 
 # --- 9. an index with no amd64 entry is skipped, not pinned to another arch ---
 out=$(PATH="$T/bin:$PATH" A37_TEST_NO_AMD64=1 A37_LIB_DIR="$LIB" A37_CONF_DIR="$T" \

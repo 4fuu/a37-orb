@@ -21,7 +21,7 @@ auto-update: this repo is the source of truth and changes are made by hand.
 | `template-refresh.sh` | Daily 04:00: repins the `amp-orb` Agent37 template to the newest upstream digest (PATCH → new revision) and rolls it out to stopped orbs only |
 | `enter-keys.sh` | Interactive secret entry (`read -s`): validates keys, registers the template, enables the units |
 | `config.json` | Region/template defaults, orb type map (`s m l xl vm-m vm-l vm-xl`), disk_grow knobs, `upstream_refs`/`entrypoints` |
-| `test/` | 45-assertion regression suite against `mock.py`, a local mock of both API planes |
+| `test/` | 46-assertion regression suite against `mock.py`, a local mock of both API planes |
 
 ## Deployment
 
@@ -30,7 +30,7 @@ The live copies run from `~/.config/a37-orb/` (same files; plus `env`, the
 
 ```bash
 cp *.sh config.json ~/.config/a37-orb/ && cp test/* ~/.config/a37-orb/test/
-bash test/run.sh                      # 45 assertions must pass
+bash test/run.sh                      # 46 assertions must pass
 systemctl --user restart a37-orb-provider   # dispatch is re-read per job; this is only for the daemon
 ```
 

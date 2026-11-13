@@ -32,8 +32,11 @@ state_set() { # TEMPLATE KEY VALUE
 	mkdir -p "$A37_STATE_DIR"
 	touch "$STATE_FILE"
 	local tmp
-	tmp=$(jq --arg t "$1" --arg k "$2" --arg v "$3" \
-		'.[$t][$k] = $v' "$STATE_FILE" 2>/dev/null ||
+	# -n --slurpfile, not a plain read: jq over an empty file is zero inputs,
+	# which exits 0 with no output and would leave the `||` fallback unused
+	# and the state file holding just a newline.
+	tmp=$(jq -n --arg t "$1" --arg k "$2" --arg v "$3" --slurpfile s "$STATE_FILE" \
+		'($s[0] // {}) | .[$t][$k] = $v' 2>/dev/null ||
 		jq -cn --arg t "$1" --arg k "$2" --arg v "$3" '{($t): {($k): $v}}')
 	printf '%s\n' "$tmp" >"$STATE_FILE"
 }
